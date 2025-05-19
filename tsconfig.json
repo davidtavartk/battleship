@@ -1,18 +1,16 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "lib": ["ESNext", "DOM"],
-    "moduleResolution": "bundler",
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "node",
     "esModuleInterop": true,
     "strict": true,
     "outDir": "./dist",
     "sourceMap": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": false,
-    "noImplicitAny": true,
-    "strictNullChecks": false
+    "forceConsistentCasingInFileNames": true,
+    "allowJs": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
