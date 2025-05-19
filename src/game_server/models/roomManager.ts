@@ -1,4 +1,3 @@
-// src/game_server/models/roomManager.ts
 import { generateId } from "../utils/idGenerator";
 import { Room } from "../types/game";
 import { Player } from "../types/game";

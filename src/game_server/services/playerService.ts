@@ -1,4 +1,3 @@
-// src/game_server/services/playerService.ts
 import { WebSocket } from 'ws';
 import { Player } from '../types/game';
 import { playerStore } from '../store';

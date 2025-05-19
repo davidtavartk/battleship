@@ -1,4 +1,3 @@
-// src/game_server/handlers/roomHandler.ts
 import { WebSocket } from 'ws';
 import { sendMessage } from '../controllers/connectionController';
 import { getPlayerBySocket } from '../services/playerService';

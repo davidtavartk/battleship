@@ -14,9 +14,9 @@ export function initializeGame(room: Room) {
     gameId,
     players: room.roomUsers.map(user => ({
       playerId: user.index,
-      ships: [],
-      shots: [],
-      hits: []
+      ships: [] as Ship[],
+      shots: [] as Position[],
+      hits: [] as Position[]
     })),
     currentPlayer: null,
     gameStarted: false,

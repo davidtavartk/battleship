@@ -1,4 +1,3 @@
-// src/game_server/controllers/messageController.ts
 import { WebSocket } from "ws";
 import { sendMessage } from "./connectionController";
 import { handleRegistration } from "../handlers/authHandler";

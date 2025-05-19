@@ -1,9 +1,8 @@
+import { WebSocket } from "ws";
 
-import { WebSocket } from 'ws';
-
-export type ShipType = 'small' | 'medium' | 'large' | 'huge';
+export type ShipType = "small" | "medium" | "large" | "huge";
 export type ShipDirection = boolean;
-export type AttackStatus = 'miss' | 'killed' | 'shot';
+export type AttackStatus = "miss" | "killed" | "shot";
 
 export interface Position {
   x: number;
