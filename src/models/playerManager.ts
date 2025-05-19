@@ -1,55 +1,59 @@
-import { generateId } from "../utils/idGenerator";
-import WebSocket from "ws";
-import { Player } from "../types/game";
+import WebSocket from 'ws';
+import { Player } from '../types/game';
+import playerStore from '../store/playerStore';
+import { getNextId } from '../utils/idGenerator';
 
-// In-memory database for players
-const players: Record<string, Player> = {};
-
-export function createPlayer(
-  name: string,
-  password: string,
-  socket: WebSocket
-): Player | null {
-  // Check if player exists with this name
-  const existingPlayer = Object.values(players).find((p) => p.name === name);
-
+export function createPlayer(name: string, password: string, socket: WebSocket): Player | null {
+  const existingPlayer = Object.values(playerStore.players).find(p => p.name === name);
+  
   if (existingPlayer) {
-    // If player exists, validate password
     if (existingPlayer.password !== password) {
-      return null; // Wrong password
+      return null;
     }
-
-    // Update socket for existing player
-    // existingPlayer.socket = socket;
+    
+    existingPlayer.socket = socket;
+    playerStore.socketToPlayerId.set(socket, existingPlayer.index);
     return existingPlayer;
   }
-
-  const playerId = generateId();
+  
+  const playerId = getNextId();
   const newPlayer: Player = {
     name,
     index: playerId,
     password,
     wins: 0,
-    socket,
+    socket
   };
-
-  players[playerId] = newPlayer;
+  
+  playerStore.players[playerId] = newPlayer;
+  playerStore.socketToPlayerId.set(socket, playerId);
   return newPlayer;
 }
 
 export function getPlayer(playerId: string | number): Player | undefined {
-  return players[playerId as string];
+  return playerStore.players[playerId];
+}
+
+export function getPlayerBySocket(socket: WebSocket): Player | undefined {
+  return playerStore.getPlayerBySocket(socket);
 }
 
 export function updatePlayerWins(playerId: string | number): void {
-  const player = players[playerId as string];
+  const player = playerStore.players[playerId];
   if (player) {
     player.wins += 1;
   }
 }
 
 export function getWinners(): { name: string; wins: number }[] {
-  return Object.values(players)
-    .map((player) => ({ name: player.name, wins: player.wins }))
+  return Object.values(playerStore.players)
+    .map(player => ({ name: player.name, wins: player.wins }))
     .sort((a, b) => b.wins - a.wins);
+}
+
+export function removePlayerSocket(socket: WebSocket): void {
+  const playerId = playerStore.socketToPlayerId.get(socket);
+  if (playerId) {
+    playerStore.socketToPlayerId.delete(socket);
+  }
 }
