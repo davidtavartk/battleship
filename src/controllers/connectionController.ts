@@ -1,6 +1,6 @@
 import WebSocket from 'ws';
 import { handleMessage } from './messageController';
-import { removePlayerFromGame } from '../models/gameManager';
+// import { removePlayerFromGame } from '../models/gameManager';
 
 export function handleConnection(ws: WebSocket) {
   console.log('New client connected');

@@ -1,6 +1,6 @@
 import { WebSocketServer } from 'ws';
 import { handleConnection } from './controllers/connectionController';
-import { SERVER_PORT } from './const/config';
+import { SERVER_PORT } from './consts/config';
 
 // Initialize the WebSocket server
 const wss = new WebSocketServer({ port: SERVER_PORT });

@@ -1,3 +1,5 @@
+import { Ship } from "./game";
+
 export interface BaseMessage {
   type: string;
   data: any;
