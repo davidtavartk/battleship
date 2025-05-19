@@ -1,231 +1,215 @@
-import { Room, Ship, GameState, AttackStatus, Position } from '../types/game';
+import { WebSocket } from 'ws';
 import { sendMessage } from '../controllers/connectionController';
-import { getPlayer, updatePlayerWins } from '../services/playerService';
-import { gameStore } from '../store';
-import { generateId } from '../utils/idGenerator';
-import { broadcastWinnersToAll } from '../services/broadcastService';
+import { playerStore } from '../store';
 
-export function getGame(gameId: string | number): GameState | undefined {
-  return gameStore.games[gameId];
-}
+// Game storage
+const games: Record<string, {
+  id: string;
+  players: string[];
+  ships: Record<string, any[]>;
+  state: string;
+  currentPlayer?: string;
+}> = {};
 
-export function initializeGame(room: Room) {
-  const gameId = generateId();
-  
-  const gameState: GameState = {
-    gameId,
-    players: room.roomUsers.map(user => ({
-      playerId: user.index,
-      ships: [],
-      shots: [],
-      hits: []
-    })),
-    currentPlayer: null,
-    gameStarted: false,
-    gameFinished: false
+export function createGame(gameId: string, players: string[]) {
+  games[gameId] = {
+    id: gameId,
+    players,
+    ships: {},
+    state: 'waiting_for_ships'
   };
   
-  gameStore.games[gameId] = gameState;
-  
-  room.roomUsers.forEach((user, index) => {
-    const player = getPlayer(user.index);
-    if (player) {
-      sendMessage(player.socket, 'create_game', {
-        idGame: gameId,
-        idPlayer: user.index
-      });
-    }
-  });
-  
-  return gameState;
+  return games[gameId];
 }
 
-export function addShipsToGame(gameId: string | number, playerId: string | number, ships: Ship[]) {
-  const game = getGame(gameId);
-  if (!game) return null;
+export function getGame(gameId: string) {
+  return games[gameId];
+}
+
+export function addShipsToGame(gameId: string, playerId: string, ships: any[]) {
+  const game = games[gameId];
   
-  const playerIndex = game.players.findIndex(p => p.playerId === playerId);
-  if (playerIndex === -1) return null;
+  if (!game) {
+    console.log(`Game not found with ID: ${gameId}`);
+    return false;
+  }
   
-  game.players[playerIndex].ships = ships;
+  // Store ships for this player
+  game.ships[playerId] = ships;
   
-  const player = getPlayer(playerId);
-  if (!player) return null;
+  console.log(`Ships added for player ${playerId} in game ${gameId}`);
   
-  sendMessage(player.socket, 'start_game', {
+  // Check if both players have added ships
+  const allPlayersHaveShips = game.players.every(player => 
+    game.ships[player] && game.ships[player].length > 0
+  );
+  
+  // If both players have added ships, start the game
+  if (allPlayersHaveShips) {
+    startGame(gameId);
+    return true;
+  }
+  
+  // Send start_game message to the current player
+  const playerSocket = playerStore.players[playerId].socket;
+  sendMessage(playerSocket, 'start_game', {
     ships: ships,
     currentPlayerIndex: playerId
-  });
+  }, 0);
   
-  const allShipsAdded = game.players.every(p => p.ships.length > 0);
-  
-  if (allShipsAdded && !game.gameStarted) {
-    game.gameStarted = true;
-    
-    const firstPlayerIndex = Math.floor(Math.random() * game.players.length);
-    game.currentPlayer = game.players[firstPlayerIndex].playerId;
-    
-    game.players.forEach(p => {
-      const player = getPlayer(p.playerId);
-      if (player) {
-        sendMessage(player.socket, 'turn', {
-          currentPlayer: game.currentPlayer
-        });
-      }
-    });
-  }
-  
-  return game;
+  return true;
 }
 
-export function processAttack(gameId: string | number, attackerId: string | number, x: number, y: number) {
-  const game = getGame(gameId);
-  if (!game) return null;
+function startGame(gameId: string) {
+  const game = games[gameId];
   
-  if (game.currentPlayer !== attackerId) return null;
+  if (!game) {
+    return false;
+  }
   
-  const attackerIndex = game.players.findIndex(p => p.playerId === attackerId);
-  const defenderIndex = (attackerIndex + 1) % game.players.length;
+  // Update game state
+  game.state = 'in_progress';
   
-  const attacker = game.players[attackerIndex];
-  const defender = game.players[defenderIndex];
+  // Choose first player randomly
+  const firstPlayerIndex = Math.floor(Math.random() * game.players.length);
+  game.currentPlayer = game.players[firstPlayerIndex];
   
-  attacker.shots.push({ x, y });
+  console.log(`Game ${gameId} started. First player: ${game.currentPlayer}`);
   
-  const hitShip = defender.ships.find(ship => isShipHit(ship, x, y));
-  let status: AttackStatus = 'miss';
+  // Send turn message to both players
+  game.players.forEach(playerId => {
+    const playerSocket = playerStore.players[playerId].socket;
+    sendMessage(playerSocket, 'turn', {
+      currentPlayer: game.currentPlayer
+    }, 0);
+  });
   
-  if (hitShip) {
-    attacker.hits.push({ x, y });
+  return true;
+}
+
+export function handleAttack(gameId: string, playerId: string, x: number, y: number) {
+  const game = games[gameId];
+  
+  if (!game) {
+    return false;
+  }
+  
+  // Ensure it's the player's turn
+  if (game.currentPlayer !== playerId) {
+    return false;
+  }
+  
+  // Get opponent's id
+  const opponentId = game.players.find(p => p !== playerId);
+  
+  if (!opponentId) {
+    return false;
+  }
+  
+  // Get opponent's ships
+  const opponentShips = game.ships[opponentId];
+  
+  // Check if the attack hits any of the opponent's ships
+  const hitResult = checkHit(opponentShips, x, y);
+  
+  // Send attack message to both players
+  game.players.forEach(pid => {
+    const playerSocket = playerStore.players[pid].socket;
+    sendMessage(playerSocket, 'attack', {
+      position: { x, y },
+      currentPlayer: playerId,
+      status: hitResult.status
+    }, 0);
+  });
+  
+  // Update the game state if a ship was hit or killed
+  if (hitResult.status === 'hit') {
+    // The player gets to shoot again
+  } else if (hitResult.status === 'killed') {
+    // Check if all ships are killed
+    const allShipsKilled = checkAllShipsKilled(opponentShips);
     
-    const shipPositions = getShipPositions(hitShip);
-    const allPositionsHit = shipPositions.every(pos => 
-      attacker.hits.some(hit => hit.x === pos.x && hit.y === pos.y)
-    );
-    
-    if (allPositionsHit) {
-      status = 'killed';
+    if (allShipsKilled) {
+      // Game over - current player wins
+      game.players.forEach(pid => {
+        const playerSocket = playerStore.players[pid].socket;
+        sendMessage(playerSocket, 'finish', {
+          winPlayer: playerId
+        }, 0);
+      });
       
-      const surroundingPositions = getSurroundingPositions(shipPositions);
-      surroundingPositions.forEach(pos => {
-        if (!attacker.shots.some(shot => shot.x === pos.x && shot.y === pos.y)) {
-          attacker.shots.push(pos);
-        }
-      });
+      // Update win count for the player
+      if (playerStore.players[playerId]) {
+        playerStore.players[playerId].wins++;
+      }
+      
+      // Send updated winners list to all players
+      sendWinnersUpdate();
+      
+      // Set game state to finished
+      game.state = 'finished';
     } else {
-      status = 'shot';
+      // The player gets to shoot again
     }
-  }
-  
-  game.players.forEach(p => {
-    const player = getPlayer(p.playerId);
-    if (player) {
-      sendMessage(player.socket, 'attack', {
-        position: { x, y },
-        currentPlayer: attackerId,
-        status
-      });
-    }
-  });
-  
-  const allShipsKilled = defender.ships.every(ship => {
-    const shipPositions = getShipPositions(ship);
-    return shipPositions.every(pos => 
-      attacker.hits.some(hit => hit.x === pos.x && hit.y === pos.y)
-    );
-  });
-  
-  if (allShipsKilled) {
-    game.gameFinished = true;
-    game.winner = attackerId;
+  } else {
+    // Miss - change to the other player's turn
+    game.currentPlayer = opponentId;
     
-    game.players.forEach(p => {
-      const player = getPlayer(p.playerId);
-      if (player) {
-        sendMessage(player.socket, 'finish', {
-          winPlayer: attackerId
-        });
-      }
-    });
-    
-    updatePlayerWins(attackerId);
-    broadcastWinnersToAll();
-    
-    return game;
-  }
-  
-  if (status === 'miss') {
-    game.currentPlayer = defender.playerId;
-    
-    game.players.forEach(p => {
-      const player = getPlayer(p.playerId);
-      if (player) {
-        sendMessage(player.socket, 'turn', {
-          currentPlayer: game.currentPlayer
-        });
-      }
+    // Send turn message to both players
+    game.players.forEach(pid => {
+      const playerSocket = playerStore.players[pid].socket;
+      sendMessage(playerSocket, 'turn', {
+        currentPlayer: game.currentPlayer
+      }, 0);
     });
   }
   
-  return game;
+  return true;
 }
 
-export function generateRandomAttack(gameId: string | number, playerId: string | number): { x: number; y: number } {
-  const game = getGame(gameId);
-  if (!game) throw new Error('Game not found');
-  
-  const attackerIndex = game.players.findIndex(p => p.playerId === playerId);
-  const defenderIndex = (attackerIndex + 1) % game.players.length;
-  
-  const attacker = game.players[attackerIndex];
-  
-  // Generate random coordinates
-  let x: number, y: number;
-  do {
-    x = Math.floor(Math.random() * 10);
-    y = Math.floor(Math.random() * 10);
-    // Continue until we find coordinates that haven't been shot at
-  } while (attacker.shots.some(shot => shot.x === x && shot.y === y));
-  
-  return { x, y };
-}
-
-// Helper functions
-function isShipHit(ship: Ship, x: number, y: number): boolean {
-  const positions = getShipPositions(ship);
-  return positions.some(pos => pos.x === x && pos.y === y);
-}
-
-function getShipPositions(ship: Ship): Position[] {
-  const positions: Position[] = [];
-  const { position, direction, length } = ship;
-  
-  for (let i = 0; i < length; i++) {
-    if (direction) { // horizontal
-      positions.push({ x: position.x + i, y: position.y });
-    } else { // vertical
-      positions.push({ x: position.x, y: position.y + i });
-    }
-  }
-  
-  return positions;
-}
-
-function getSurroundingPositions(positions: Position[]): Position[] {
-  const surrounding: Position[] = [];
-  const minX = Math.max(0, Math.min(...positions.map(p => p.x)) - 1);
-  const maxX = Math.min(9, Math.max(...positions.map(p => p.x)) + 1);
-  const minY = Math.max(0, Math.min(...positions.map(p => p.y)) - 1);
-  const maxY = Math.min(9, Math.max(...positions.map(p => p.y)) + 1);
-  
-  for (let x = minX; x <= maxX; x++) {
-    for (let y = minY; y <= maxY; y++) {
-      // Only add positions that aren't part of the ship
-      if (!positions.some(p => p.x === x && p.y === y)) {
-        surrounding.push({ x, y });
+function checkHit(ships: any[], x: number, y: number) {
+  for (let i = 0; i < ships.length; i++) {
+    const ship = ships[i];
+    const { position, direction, length } = ship;
+    
+    // Check if coordinates hit this ship
+    let hit = false;
+    
+    if (direction) { // vertical
+      if (x === position.x && y >= position.y && y < position.y + length) {
+        hit = true;
+      }
+    } else { // horizontal
+      if (y === position.y && x >= position.x && x < position.x + length) {
+        hit = true;
       }
     }
+    
+    if (hit) {
+      // Check if this kills the ship (implementation depends on how you track hits)
+      return { status: 'hit', shipIndex: i };
+    }
   }
   
-  return surrounding;
+  return { status: 'miss' };
+}
+
+function checkAllShipsKilled(ships: any[]) {
+  // Implementation depends on how you track hits
+  return false;
+}
+
+function sendWinnersUpdate() {
+  const winners = Object.values(playerStore.players)
+    .filter(player => player.wins > 0)
+    .map(player => ({
+      name: player.name,
+      wins: player.wins
+    }));
+  
+  Object.values(playerStore.players).forEach(player => {
+    if (player.socket.readyState === WebSocket.OPEN) {
+      sendMessage(player.socket, 'update_winners', winners, 0);
+    }
+  });
 }

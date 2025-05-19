@@ -11,8 +11,19 @@ export function handleAddShips(ws: WebSocket, message: any) {
     sendMessage(ws, 'error', { error: true, errorText: 'You must register first' });
     return;
   }
+
+  let data = message.data;
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data);
+    } catch (e) {
+      console.error('Failed to parse data string:', e);
+      sendMessage(ws, 'error', { error: true, errorText: 'Invalid data format' });
+      return;
+    }
+  }
   
-  const { gameId, ships, indexPlayer } = message.data;
+  const { gameId, ships, indexPlayer } = data;
   
   if (indexPlayer !== player.index) {
     sendMessage(ws, 'error', { error: true, errorText: 'Invalid player index' });

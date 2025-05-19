@@ -2,6 +2,7 @@ import { WebSocket } from 'ws';
 import { sendMessage } from '../controllers/connectionController';
 import { generateId } from '../utils/idGenerator';
 import { playerStore } from '../store';
+import { createGame } from '../services/gameService';
 
 const rooms: Record<string, {
   roomId: string;
@@ -67,29 +68,22 @@ export function handleAddUserToRoom(ws: WebSocket, message: any) {
   console.log(`Player ${playerId} joined room ${indexRoom}`);
   
   if (rooms[indexRoom].roomUsers.length === 2) {
-    const gameId = generateId();
-    
-    const game = {
-      id: gameId,
-      players: rooms[indexRoom].roomUsers.map(user => String(user.index)),  // Explicitly convert to string
-      ships: {} as Record<string, any>,
-      state: 'waiting_for_ships'
-    };
-    
-    games[gameId] = game;
-    
-    rooms[indexRoom].roomUsers.forEach(user => {
-      const playerSocket = playerStore.players[user.index].socket;
-      sendMessage(playerSocket, 'create_game', {
-        idGame: gameId,
-        idPlayer: user.index
-      }, 0);
-    });
-    
-    delete rooms[indexRoom];
-    
-    console.log(`Game created with ID: "${gameId}"`);
-  }
+  const gameId = generateId();
+
+  const game = createGame(gameId, rooms[indexRoom].roomUsers.map(user => String(user.index)));
+  rooms[indexRoom].roomUsers.forEach(user => {
+    const playerSocket = playerStore.players[user.index].socket;
+    sendMessage(playerSocket, 'create_game', {
+      idGame: gameId,
+      idPlayer: user.index
+    }, 0);
+  });
+  
+  // Remove room from available rooms
+  delete rooms[indexRoom];
+  
+  console.log(`Game created with ID: "${gameId}"`);
+}
   
   updateRoomsForAllPlayers();
 }

@@ -14,70 +14,65 @@ const REQUIRED_SHIPS: Record<ShipType, number> = {
   huge: 1
 };
 
-export function validateShips(ships: Ship[]): boolean {
-  if (!ships || !Array.isArray(ships)) {
+export function validateShips(ships: any[]) {
+  if (!Array.isArray(ships) || ships.length !== 10) {
     return false;
   }
   
-  const shipCounts: Record<ShipType, number> = {
-    small: 0,
-    medium: 0,
+  // Count ships by type
+  const shipCounts: Record<string, number> = {
+    huge: 0,
     large: 0,
-    huge: 0
+    medium: 0,
+    small: 0
   };
   
+  // Check for each ship
   for (const ship of ships) {
-    shipCounts[ship.type]++;
-  }
-  
-  for (const type of Object.keys(REQUIRED_SHIPS) as ShipType[]) {
-    if (shipCounts[type] !== REQUIRED_SHIPS[type]) {
+    if (!ship.position || typeof ship.position.x !== 'number' || typeof ship.position.y !== 'number') {
       return false;
     }
-  }
-  
-  for (const ship of ships) {
-    if (ship.length !== SHIP_LENGTHS[ship.type]) {
+    
+    if (typeof ship.direction !== 'boolean') {
       return false;
     }
-  }
-  
-  for (const ship of ships) {
-    const positions = getShipPositions(ship);
     
-    for (const pos of positions) {
-      if (pos.x < 0 || pos.x > 9 || pos.y < 0 || pos.y > 9) {
+    if (!ship.type || !ship.length) {
+      return false;
+    }
+    
+    // Validate ship is on the board
+    const x = ship.position.x;
+    const y = ship.position.y;
+    const length = ship.length;
+    const direction = ship.direction;
+    
+    if (x < 0 || x > 9 || y < 0 || y > 9) {
+      return false;
+    }
+    
+    if (direction) { // vertical
+      if (y + length > 10) {
+        return false;
+      }
+    } else { // horizontal
+      if (x + length > 10) {
         return false;
       }
     }
-  }
-  
-  const occupiedPositions: Position[] = [];
-  
-  for (const ship of ships) {
-    const positions = getShipPositions(ship);
     
-    for (const pos of positions) {
-      if (occupiedPositions.some(p => p.x === pos.x && p.y === pos.y)) {
-        return false;
-      }
-      occupiedPositions.push(pos);
+    // Count by type - check if it's a valid ship type first
+    const shipType = ship.type;
+    if (shipType === 'huge' || shipType === 'large' || shipType === 'medium' || shipType === 'small') {
+      shipCounts[shipType]++;
+    } else {
+      return false; // Invalid ship type
     }
   }
   
-  for (const ship of ships) {
-    const shipPositions = getShipPositions(ship);
-    const surroundingPositions = getSurroundingPositions(shipPositions);
-    
-    for (const pos of surroundingPositions) {
-      if (occupiedPositions.some(p => 
-        p.x === pos.x && 
-        p.y === pos.y && 
-        !shipPositions.some(sp => sp.x === pos.x && sp.y === pos.y)
-      )) {
-        return false;
-      }
-    }
+  // Validate ship counts
+  if (shipCounts.huge !== 1 || shipCounts.large !== 2 || shipCounts.medium !== 3 || shipCounts.small !== 4) {
+    return false;
   }
   
   return true;
