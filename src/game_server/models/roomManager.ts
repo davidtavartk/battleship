@@ -1,7 +1,7 @@
 import { generateId } from "../utils/idGenerator";
 import { Room } from "../types/game";
 import { Player } from "../types/game";
-import { broadcastUpdateRooms } from "../controllers/messageController";
+import { broadcastUpdateRooms } from "../game_server/controllers/messageController";
 
 // In-memory database for rooms
 const rooms: Record<string, Room> = {};

@@ -1,10 +1,19 @@
 // src/controllers/messageController.ts
-import WebSocket from 'ws';
-import { BaseMessage } from '../types/messages';
-import { createPlayer, getPlayer, getWinners, getPlayerBySocket } from '../models/playerManager';
-import { createRoom, addPlayerToRoom, getAvailableRooms } from '../models/roomManager';
-import { sendMessage } from './connectionController';
-import { Player, Room } from '../types/game';
+import WebSocket from "ws";
+import { BaseMessage } from "../types/messages";
+import {
+  createPlayer,
+  getPlayer,
+  getWinners,
+  getPlayerBySocket,
+} from "../../models/playerManager";
+import {
+  createRoom,
+  addPlayerToRoom,
+  getAvailableRooms,
+} from "../../models/roomManager";
+import { sendMessage } from "./connectionController";
+import { Player, Room } from "../types/game";
 
 const wsToPlayerMap = new Map<WebSocket, string>();
 
@@ -14,7 +23,7 @@ export function handleConnection(ws: WebSocket) {
   connections.push(ws);
   console.log(`New client connected. Total connections: ${connections.length}`);
 
-  ws.on('close', () => {
+  ws.on("close", () => {
     const index = connections.indexOf(ws);
     if (index !== -1) {
       connections.splice(index, 1);
@@ -26,43 +35,45 @@ export function handleConnection(ws: WebSocket) {
       console.log(`Player ${player.name} disconnected`);
     }
 
-    console.log(`Client disconnected. Remaining connections: ${connections.length}`);
+    console.log(
+      `Client disconnected. Remaining connections: ${connections.length}`
+    );
   });
 }
 
 export function handleMessage(ws: WebSocket, message: BaseMessage) {
-  console.log('Received message:', message);
+  console.log("Received message:", message);
 
   switch (message.type) {
-    case 'reg':
+    case "reg":
       handleRegistration(ws, message);
       break;
 
-    case 'create_room':
+    case "create_room":
       handleCreateRoom(ws, message);
       break;
 
-    case 'add_user_to_room':
+    case "add_user_to_room":
       handleAddUserToRoom(ws, message);
       break;
 
-    case 'add_ships':
+    case "add_ships":
       // To be implemented
       break;
 
-    case 'attack':
+    case "attack":
       // To be implemented
       break;
 
-    case 'randomAttack':
+    case "randomAttack":
       // To be implemented
       break;
 
     default:
       console.warn(`Unknown message type: ${message.type}`);
       sendMessage(ws, {
-        type: 'error',
-        data: { error: true, errorText: 'Unknown message type' },
+        type: "error",
+        data: { error: true, errorText: "Unknown message type" },
         id: 0,
       });
   }
@@ -73,10 +84,10 @@ function handleRegistration(ws: WebSocket, message: BaseMessage) {
 
   if (!name || !password) {
     sendMessage(ws, {
-      type: 'reg',
+      type: "reg",
       data: {
         error: true,
-        errorText: 'Name and password are required',
+        errorText: "Name and password are required",
       },
       id: 0,
     });
@@ -87,10 +98,10 @@ function handleRegistration(ws: WebSocket, message: BaseMessage) {
 
   if (!player) {
     sendMessage(ws, {
-      type: 'reg',
+      type: "reg",
       data: {
         error: true,
-        errorText: 'Invalid credentials',
+        errorText: "Invalid credentials",
       },
       id: 0,
     });
@@ -102,12 +113,12 @@ function handleRegistration(ws: WebSocket, message: BaseMessage) {
 
   // Send successful registration response
   sendMessage(ws, {
-    type: 'reg',
+    type: "reg",
     data: {
       name: player.name,
       index: player.index,
       error: false,
-      errorText: '',
+      errorText: "",
     },
     id: 0,
   });
@@ -124,8 +135,8 @@ function handleCreateRoom(ws: WebSocket, message: BaseMessage) {
 
   if (!playerId) {
     sendMessage(ws, {
-      type: 'error',
-      data: { error: true, errorText: 'You must register first' },
+      type: "error",
+      data: { error: true, errorText: "You must register first" },
       id: 0,
     });
     return;
@@ -135,8 +146,8 @@ function handleCreateRoom(ws: WebSocket, message: BaseMessage) {
 
   if (!player) {
     sendMessage(ws, {
-      type: 'error',
-      data: { error: true, errorText: 'Player not found' },
+      type: "error",
+      data: { error: true, errorText: "Player not found" },
       id: 0,
     });
     return;
@@ -150,8 +161,8 @@ function handleAddUserToRoom(ws: WebSocket, message: BaseMessage) {
 
   if (!playerId) {
     sendMessage(ws, {
-      type: 'error',
-      data: { error: true, errorText: 'You must register first' },
+      type: "error",
+      data: { error: true, errorText: "You must register first" },
       id: 0,
     });
     return;
@@ -161,8 +172,8 @@ function handleAddUserToRoom(ws: WebSocket, message: BaseMessage) {
 
   if (!player) {
     sendMessage(ws, {
-      type: 'error',
-      data: { error: true, errorText: 'Player not found' },
+      type: "error",
+      data: { error: true, errorText: "Player not found" },
       id: 0,
     });
     return;
@@ -172,8 +183,8 @@ function handleAddUserToRoom(ws: WebSocket, message: BaseMessage) {
 
   if (!indexRoom) {
     sendMessage(ws, {
-      type: 'error',
-      data: { error: true, errorText: 'Room ID is required' },
+      type: "error",
+      data: { error: true, errorText: "Room ID is required" },
       id: 0,
     });
     return;
@@ -183,8 +194,8 @@ function handleAddUserToRoom(ws: WebSocket, message: BaseMessage) {
 
   if (!room) {
     sendMessage(ws, {
-      type: 'error',
-      data: { error: true, errorText: 'Room not found or full' },
+      type: "error",
+      data: { error: true, errorText: "Room not found or full" },
       id: 0,
     });
     return;
@@ -206,7 +217,7 @@ function initializeGame(room: Room) {
     const player = getPlayer(user.index);
     if (player) {
       sendMessage(player.socket, {
-        type: 'create_game',
+        type: "create_game",
         data: {
           idGame: room.roomId,
           idPlayer: index + 1, // Simple player ID assignment: 1 or 2
@@ -222,7 +233,7 @@ export function broadcastUpdateRooms() {
 
   // Create message format
   const updateRoomMessage = {
-    type: 'update_room',
+    type: "update_room",
     data: availableRooms.map((room) => ({
       roomId: room.roomId,
       roomUsers: room.roomUsers,
@@ -242,7 +253,7 @@ export function broadcastWinners() {
   const winners = getWinners();
 
   const updateWinnersMessage = {
-    type: 'update_winners',
+    type: "update_winners",
     data: winners,
     id: 0,
   };
