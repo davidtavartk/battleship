@@ -1,7 +1,8 @@
+// src/game_server/models/roomManager.ts
 import { generateId } from "../utils/idGenerator";
 import { Room } from "../types/game";
 import { Player } from "../types/game";
-import { broadcastUpdateRooms } from "../game_server/controllers/messageController";
+import { broadcastRoomsToAll } from "../services/broadcastService";  // Fixed import
 
 // In-memory database for rooms
 const rooms: Record<string, Room> = {};
@@ -20,8 +21,7 @@ export function createRoom(playerId: string | number, player: Player): Room {
 
   rooms[roomId] = newRoom;
 
-  // Broadcast updated room list
-  broadcastUpdateRooms();
+  broadcastRoomsToAll();
 
   return newRoom;
 }
@@ -34,27 +34,19 @@ export function addPlayerToRoom(
   const room = rooms[roomId as string];
 
   if (!room) {
-    return null; // Room not found
+    return null;
   }
 
   if (room.roomUsers.length >= 2) {
-    return null; // Room is full
+    return null;
   }
 
-  // Add player to room
   room.roomUsers.push({
     name: player.name,
     index: playerId,
   });
 
-  // If room is now full, remove it from available rooms
-  if (room.roomUsers.length === 2) {
-    // Room is full, remove from available list
-    // This will be handled by filtering in the getAvailableRooms function
-  }
-
-  // Broadcast updated room list
-  broadcastUpdateRooms();
+  broadcastRoomsToAll();
 
   return room;
 }
@@ -69,5 +61,5 @@ export function getAvailableRooms(): Room[] {
 
 export function deleteRoom(roomId: string | number): void {
   delete rooms[roomId as string];
-  broadcastUpdateRooms();
+  broadcastRoomsToAll();
 }

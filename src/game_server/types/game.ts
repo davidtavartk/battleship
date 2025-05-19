@@ -1,3 +1,4 @@
+
 import { WebSocket } from 'ws';
 
 export type ShipType = 'small' | 'medium' | 'large' | 'huge';
@@ -41,7 +42,7 @@ export interface GameState {
     shots: Position[];
     hits: Position[];
   }[];
-  currentPlayer: string | number;
+  currentPlayer: string | number | null;
   gameStarted: boolean;
   gameFinished: boolean;
   winner?: string | number;

@@ -4,7 +4,6 @@ import { sendMessage } from '../controllers/connectionController';
 import { getPlayerBySocket } from '../services/playerService';
 import { getGame, addShipsToGame } from '../services/gameService';
 import { validateShips } from '../utils/shipValidator';
-
 export function handleAddShips(ws: WebSocket, message: any) {
   const player = getPlayerBySocket(ws);
   

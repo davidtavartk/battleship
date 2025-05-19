@@ -1,4 +1,4 @@
-// src/game_server/services/gameService.ts
+
 import { WebSocket } from 'ws';
 import { Room, Ship, GameState, AttackStatus, Position } from '../types/game';
 import { sendMessage } from '../controllers/connectionController';
@@ -18,14 +18,13 @@ export function initializeGame(room: Room) {
       shots: [],
       hits: []
     })),
-    currentPlayer: null, // Will be set when both players add ships
+    currentPlayer: null,
     gameStarted: false,
     gameFinished: false
   };
   
   gameStore.games[gameId] = gameState;
-  
-  // Notify players about game creation
+
   room.roomUsers.forEach((user, index) => {
     const player = getPlayer(user.index);
     if (player) {
