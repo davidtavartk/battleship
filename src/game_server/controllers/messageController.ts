@@ -2,10 +2,12 @@ import { WebSocket } from 'ws';
 import { handleRegistration } from '../handlers/authHandler';
 import { handleCreateRoom, handleAddUserToRoom } from '../handlers/roomHandler';
 import { handleAddShips } from '../handlers/shipHandler';
+import { handleAttack, handleRandomAttack } from '../handlers/gameHandler';
 
 export function handleMessage(ws: WebSocket, message: any) {
   console.log('Received message:', message);
   
+  // Parse data if it's a string
   if (message.data && typeof message.data === 'string' && message.data !== '') {
     try {
       message.data = JSON.parse(message.data);
@@ -26,6 +28,12 @@ export function handleMessage(ws: WebSocket, message: any) {
       break;
     case 'add_ships':
       handleAddShips(ws, message);
+      break;
+    case 'attack':
+      handleAttack(ws, message);
+      break;
+    case 'randomAttack':
+      handleRandomAttack(ws, message);
       break;
     default:
       console.log(`Unhandled message type: ${message.type}`);

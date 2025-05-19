@@ -1,11 +1,9 @@
-// src/game_server/services/broadcastService.ts
 import { WebSocket } from 'ws';
 import { sendMessage } from '../controllers/connectionController';
 import { getWinners } from './playerService';
 import { getAvailableRooms } from '../models/roomManager';
 import { getAllConnections } from './connectionService';
 
-// Broadcast to a single client
 export function broadcastWinners(ws: WebSocket) {
   const winners = getWinners();
   sendMessage(ws, 'update_winners', winners);
@@ -21,7 +19,6 @@ export function broadcastRooms(ws: WebSocket) {
   sendMessage(ws, 'update_room', roomData);
 }
 
-// Broadcast to all clients
 export function broadcastWinnersToAll() {
   const winners = getWinners();
   const connections = getAllConnections();
