@@ -1,14 +1,14 @@
-import WebSocket from 'ws';
+import { WebSocket } from 'ws';
 import { handleMessage } from './messageController';
-// import { removePlayerFromGame } from '../models/gameManager';
+import { disconnectPlayer } from '../services/playerService';
 
 export function handleConnection(ws: WebSocket) {
   console.log('New client connected');
   
   // Set up message handler
-  ws.on('message', (message: string) => {
+  ws.on('message', (message) => {
     try {
-      const parsedMessage = JSON.parse(message);
+      const parsedMessage = JSON.parse(message.toString());
       handleMessage(ws, parsedMessage);
     } catch (error) {
       console.error('Error parsing message:', error);
@@ -16,10 +16,10 @@ export function handleConnection(ws: WebSocket) {
     }
   });
   
-  
+  // Handle disconnection
   ws.on('close', () => {
     console.log('Client disconnected');
-    
+    disconnectPlayer(ws);
   });
 }
 
