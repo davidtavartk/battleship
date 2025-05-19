@@ -1,38 +1,46 @@
-import { WebSocket } from 'ws';
-import { handleMessage } from './messageController';
-import { disconnectPlayer } from '../services/playerService';
+import { WebSocket } from "ws";
+import { handleMessage } from "./messageController";
 
 export function handleConnection(ws: WebSocket) {
-  console.log('New client connected');
-  
-  // Set up message handler
-  ws.on('message', (message) => {
+  console.log("👤 New client connected");
+
+  ws.on("message", (message) => {
+    let parsed: any;
     try {
-      const parsedMessage = JSON.parse(message.toString());
-      handleMessage(ws, parsedMessage);
-    } catch (error) {
-      console.error('Error parsing message:', error);
-      sendErrorMessage(ws, 'Invalid message format');
+      parsed = JSON.parse(message.toString());
+    } catch (err) {
+      console.error("⚠️  Error parsing message:", err);
+      return;
     }
+    console.log(`🔄 Received request of type: '${parsed.type}'`);
+
+    handleMessage(ws, parsed);
   });
-  
-  // Handle disconnection
-  ws.on('close', () => {
-    console.log('Client disconnected');
-    disconnectPlayer(ws);
+
+  ws.on("close", () => {
+    console.log("👋 Client disconnected");
   });
 }
 
-export function sendMessage(ws: WebSocket, message: any) {
-  if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(message));
-  }
-}
+export function sendMessage(
+  ws: WebSocket,
+  type: string,
+  data: any,
+  id: number = 0
+) {
+  if (ws.readyState !== WebSocket.OPEN) return;
 
+  const payload = {
+    type,
+    data: typeof data === "string" ? data : JSON.stringify(data),
+    id,
+  };
+
+  const jsonString = JSON.stringify(payload);
+  ws.send(jsonString);
+
+  console.log(`Sent JSON: ${jsonString}`);
+}
 export function sendErrorMessage(ws: WebSocket, errorText: string) {
-  sendMessage(ws, {
-    type: 'error',
-    data: { error: true, errorText },
-    id: 0
-  });
+  sendMessage(ws, "error", { error: true, errorText });
 }

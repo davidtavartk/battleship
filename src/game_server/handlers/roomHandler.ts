@@ -1,63 +1,112 @@
 import { WebSocket } from 'ws';
 import { sendMessage } from '../controllers/connectionController';
-import { getPlayerBySocket } from '../services/playerService';
-import { createRoom, addPlayerToRoom } from '../models/roomManager';
-import { broadcastRoomsToAll } from '../services/broadcastService';
-import { initializeGame } from '../services/gameService';
+import { generateId } from '../utils/idGenerator';
+import { playerStore } from '../store';
+
+const rooms: Record<string, {
+  roomId: string;
+  roomUsers: Array<{
+    name: string;
+    index: string | number;
+  }>;
+}> = {};
+
+const games: Record<string, {
+  id: string;
+  players: string[];
+  ships: Record<string, any>;
+  state: string;
+}> = {};
 
 export function handleCreateRoom(ws: WebSocket, message: any) {
-  const player = getPlayerBySocket(ws);
-  
-  if (!player) {
-    sendMessage(ws, {
-      type: 'error',
-      data: { error: true, errorText: 'You must register first' },
-      id: 0
-    });
+  const playerId = playerStore.socketToPlayerId.get(ws);
+  if (!playerId) {
+    sendMessage(ws, 'error', { errorText: 'You must register before creating a room' });
     return;
   }
   
-  const room = createRoom(player.index, player);
-  broadcastRoomsToAll();
+  const roomId = generateId();
+  const room = {
+    roomId,
+    roomUsers: [{
+      name: playerStore.players[playerId].name,
+      index: playerId
+    }]
+  };
+  
+  rooms[roomId] = room;
+  
+  console.log(`Room created with ID: "${roomId}"`);
+  
+  updateRoomsForAllPlayers();
 }
 
 export function handleAddUserToRoom(ws: WebSocket, message: any) {
-  const player = getPlayerBySocket(ws);
+  let data = message.data;
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data);
+    } catch (e) {
+      console.error('Failed to parse data string:', e);
+    }
+  }
   
-  if (!player) {
-    sendMessage(ws, {
-      type: 'error',
-      data: { error: true, errorText: 'You must register first' },
-      id: 0
-    });
+  const { indexRoom } = data;
+  const playerId = playerStore.socketToPlayerId.get(ws);
+  
+  if (!playerId || !indexRoom || !rooms[indexRoom]) {
+    sendMessage(ws, 'error', { errorText: 'Invalid room or player' });
     return;
   }
   
-  const { indexRoom } = message.data;
+  rooms[indexRoom].roomUsers.push({
+    name: playerStore.players[playerId].name,
+    index: playerId
+  });
   
-  if (!indexRoom) {
-    sendMessage(ws, {
-      type: 'error',
-      data: { error: true, errorText: 'Room ID is required' },
-      id: 0
+  console.log(`Player ${playerId} joined room ${indexRoom}`);
+  
+  if (rooms[indexRoom].roomUsers.length === 2) {
+    const gameId = generateId();
+    
+    const game = {
+      id: gameId,
+      players: rooms[indexRoom].roomUsers.map(user => String(user.index)),  // Explicitly convert to string
+      ships: {} as Record<string, any>,
+      state: 'waiting_for_ships'
+    };
+    
+    games[gameId] = game;
+    
+    rooms[indexRoom].roomUsers.forEach(user => {
+      const playerSocket = playerStore.players[user.index].socket;
+      sendMessage(playerSocket, 'create_game', {
+        idGame: gameId,
+        idPlayer: user.index
+      }, 0);
     });
-    return;
+    
+    delete rooms[indexRoom];
+    
+    console.log(`Game created with ID: "${gameId}"`);
   }
   
-  const room = addPlayerToRoom(indexRoom, player.index, player);
+  updateRoomsForAllPlayers();
+}
+
+function updateRoomsForAllPlayers() {
+  const roomsArray = Object.values(rooms)
+    .filter(room => room.roomUsers.length === 1)
+    .map(room => ({
+      roomId: room.roomId,
+      roomUsers: room.roomUsers
+    }));
   
-  if (!room) {
-    sendMessage(ws, {
-      type: 'error',
-      data: { error: true, errorText: 'Room not found or full' },
-      id: 0
-    });
-    return;
-  }
+  Object.values(playerStore.players).forEach(player => {
+    if (player.socket.readyState === WebSocket.OPEN) {
+      sendMessage(player.socket, 'update_room', roomsArray, 0);
+    }
+  });
   
-  broadcastRoomsToAll();
-  
-  if (room.roomUsers.length === 2) {
-    initializeGame(room);
-  }
+  console.log(`Updated rooms: ${JSON.stringify(roomsArray)}`);
 }

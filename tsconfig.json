@@ -15,7 +15,5 @@
     "noImplicitOverride": true,
     "noImplicitReturns": true
   },
-  "include": [
-    "./src/*/"
-  ]
+  "include": ["./src/*/"]
 }

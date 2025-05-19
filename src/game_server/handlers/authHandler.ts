@@ -1,48 +1,66 @@
-import { WebSocket } from "ws";
-import { sendMessage } from "../controllers/connectionController";
-import { createPlayer } from "../services/playerService";
-import { broadcastWinners, broadcastRooms } from "../services/broadcastService";
+import { WebSocket } from 'ws';
+import { sendMessage } from '../controllers/connectionController';
+import { playerStore } from '../store';
+import { generateId } from '../utils/idGenerator';
 
 export function handleRegistration(ws: WebSocket, message: any) {
-  const { name, password } = message.data;
+  console.log('Registration message received:', message);
 
+  let data = message.data;
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data);
+    } catch (e) {
+      console.error('Failed to parse data string:', e);
+    }
+  }
+  
+  const { name, password } = data;
+  
   if (!name || !password) {
-    sendMessage(ws, {
-      type: "reg",
-      data: {
-        error: true,
-        errorText: "Name and password are required",
-      },
-      id: 0,
+    console.log('Missing name or password');
+    sendMessage(ws, 'reg', {
+      error: true,
+      errorText: 'Name and password are required'
     });
     return;
   }
-
-  const player = createPlayer(name, password, ws);
-
-  if (!player) {
-    sendMessage(ws, {
-      type: "reg",
-      data: {
-        error: true,
-        errorText: "Invalid credentials",
-      },
-      id: 0,
-    });
-    return;
-  }
-
-  sendMessage(ws, {
-    type: "reg",
-    data: {
-      name: player.name,
-      index: player.index,
-      error: false,
-      errorText: "",
-    },
-    id: 0,
+  
+  console.log(`Registering user: ${name} with password: ${password}`);
+  
+  // Create player
+  const playerId = generateId();
+  const player = {
+    name,
+    index: playerId,
+    password,
+    wins: 0,
+    socket: ws
+  };
+  
+  // Store the player
+  playerStore.players[playerId] = player;
+  playerStore.socketToPlayerId.set(ws, playerId);
+  
+  console.log(`Player created with ID: ${playerId}`);
+  
+  // Send successful registration response
+  sendMessage(ws, 'reg', {
+    name: player.name,
+    index: player.index,
+    error: false,
+    errorText: ''
   });
-
-  broadcastWinners(ws);
-  broadcastRooms(ws);
+  
+  console.log('Registration response sent');
+  
+  // Send winners list (empty for now)
+  sendMessage(ws, 'update_winners', []);
+  
+  console.log('Winners list sent');
+  
+  // Send available rooms (empty for now)
+  sendMessage(ws, 'update_room', []);
+  
+  console.log('Room list sent');
 }

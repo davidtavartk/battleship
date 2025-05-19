@@ -1,11 +1,13 @@
-
-import { WebSocket } from 'ws';
 import { Room, Ship, GameState, AttackStatus, Position } from '../types/game';
 import { sendMessage } from '../controllers/connectionController';
 import { getPlayer, updatePlayerWins } from '../services/playerService';
 import { gameStore } from '../store';
 import { generateId } from '../utils/idGenerator';
 import { broadcastWinnersToAll } from '../services/broadcastService';
+
+export function getGame(gameId: string | number): GameState | undefined {
+  return gameStore.games[gameId];
+}
 
 export function initializeGame(room: Room) {
   const gameId = generateId();
@@ -14,9 +16,9 @@ export function initializeGame(room: Room) {
     gameId,
     players: room.roomUsers.map(user => ({
       playerId: user.index,
-      ships: [] as Ship[],
-      shots: [] as Position[],
-      hits: [] as Position[]
+      ships: [],
+      shots: [],
+      hits: []
     })),
     currentPlayer: null,
     gameStarted: false,
@@ -24,26 +26,18 @@ export function initializeGame(room: Room) {
   };
   
   gameStore.games[gameId] = gameState;
-
+  
   room.roomUsers.forEach((user, index) => {
     const player = getPlayer(user.index);
     if (player) {
-      sendMessage(player.socket, {
-        type: 'create_game',
-        data: {
-          idGame: gameId,
-          idPlayer: user.index
-        },
-        id: 0
+      sendMessage(player.socket, 'create_game', {
+        idGame: gameId,
+        idPlayer: user.index
       });
     }
   });
   
   return gameState;
-}
-
-export function getGame(gameId: string | number): GameState | undefined {
-  return gameStore.games[gameId];
 }
 
 export function addShipsToGame(gameId: string | number, playerId: string | number, ships: Ship[]) {
@@ -53,44 +47,29 @@ export function addShipsToGame(gameId: string | number, playerId: string | numbe
   const playerIndex = game.players.findIndex(p => p.playerId === playerId);
   if (playerIndex === -1) return null;
   
-  // Save player's ships
   game.players[playerIndex].ships = ships;
   
-  // Get the player object
   const player = getPlayer(playerId);
   if (!player) return null;
   
-  // Notify player about ships added
-  sendMessage(player.socket, {
-    type: 'start_game',
-    data: {
-      ships: ships,
-      currentPlayerIndex: playerId
-    },
-    id: 0
+  sendMessage(player.socket, 'start_game', {
+    ships: ships,
+    currentPlayerIndex: playerId
   });
   
-  // Check if both players have added ships
   const allShipsAdded = game.players.every(p => p.ships.length > 0);
   
   if (allShipsAdded && !game.gameStarted) {
-    // Start the game
     game.gameStarted = true;
     
-    // Randomly select first player
     const firstPlayerIndex = Math.floor(Math.random() * game.players.length);
     game.currentPlayer = game.players[firstPlayerIndex].playerId;
     
-    // Notify all players about turn
     game.players.forEach(p => {
       const player = getPlayer(p.playerId);
       if (player) {
-        sendMessage(player.socket, {
-          type: 'turn',
-          data: {
-            currentPlayer: game.currentPlayer
-          },
-          id: 0
+        sendMessage(player.socket, 'turn', {
+          currentPlayer: game.currentPlayer
         });
       }
     });
@@ -103,28 +82,22 @@ export function processAttack(gameId: string | number, attackerId: string | numb
   const game = getGame(gameId);
   if (!game) return null;
   
-  // Validate it's the attacker's turn
   if (game.currentPlayer !== attackerId) return null;
   
-  // Find attacker and defender
   const attackerIndex = game.players.findIndex(p => p.playerId === attackerId);
   const defenderIndex = (attackerIndex + 1) % game.players.length;
   
   const attacker = game.players[attackerIndex];
   const defender = game.players[defenderIndex];
   
-  // Add shot to attacker's shots
   attacker.shots.push({ x, y });
   
-  // Check if the shot hits any of defender's ships
   const hitShip = defender.ships.find(ship => isShipHit(ship, x, y));
   let status: AttackStatus = 'miss';
   
   if (hitShip) {
-    // Record hit
     attacker.hits.push({ x, y });
     
-    // Check if ship is killed
     const shipPositions = getShipPositions(hitShip);
     const allPositionsHit = shipPositions.every(pos => 
       attacker.hits.some(hit => hit.x === pos.x && hit.y === pos.y)
@@ -133,7 +106,6 @@ export function processAttack(gameId: string | number, attackerId: string | numb
     if (allPositionsHit) {
       status = 'killed';
       
-      // Add misses around the ship
       const surroundingPositions = getSurroundingPositions(shipPositions);
       surroundingPositions.forEach(pos => {
         if (!attacker.shots.some(shot => shot.x === pos.x && shot.y === pos.y)) {
@@ -145,23 +117,17 @@ export function processAttack(gameId: string | number, attackerId: string | numb
     }
   }
   
-  // Broadcast attack result to all players
   game.players.forEach(p => {
     const player = getPlayer(p.playerId);
     if (player) {
-      sendMessage(player.socket, {
-        type: 'attack',
-        data: {
-          position: { x, y },
-          currentPlayer: attackerId,
-          status
-        },
-        id: 0
+      sendMessage(player.socket, 'attack', {
+        position: { x, y },
+        currentPlayer: attackerId,
+        status
       });
     }
   });
   
-  // Check if game is finished
   const allShipsKilled = defender.ships.every(ship => {
     const shipPositions = getShipPositions(ship);
     return shipPositions.every(pos => 
@@ -170,45 +136,32 @@ export function processAttack(gameId: string | number, attackerId: string | numb
   });
   
   if (allShipsKilled) {
-    // Game is finished
     game.gameFinished = true;
     game.winner = attackerId;
     
-    // Broadcast game finish
     game.players.forEach(p => {
       const player = getPlayer(p.playerId);
       if (player) {
-        sendMessage(player.socket, {
-          type: 'finish',
-          data: {
-            winPlayer: attackerId
-          },
-          id: 0
+        sendMessage(player.socket, 'finish', {
+          winPlayer: attackerId
         });
       }
     });
     
-    // Update winner's stats
     updatePlayerWins(attackerId);
     broadcastWinnersToAll();
     
     return game;
   }
   
-  // Update turn if missed
   if (status === 'miss') {
     game.currentPlayer = defender.playerId;
     
-    // Broadcast turn update
     game.players.forEach(p => {
       const player = getPlayer(p.playerId);
       if (player) {
-        sendMessage(player.socket, {
-          type: 'turn',
-          data: {
-            currentPlayer: game.currentPlayer
-          },
-          id: 0
+        sendMessage(player.socket, 'turn', {
+          currentPlayer: game.currentPlayer
         });
       }
     });

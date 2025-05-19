@@ -2,12 +2,11 @@
   "name": "battleship",
   "version": "1.0.0",
   "description": "Battleship game server",
-  "main": "index.js",
-  "type": "module",
+  "main": "index.ts",
   "scripts": {
     "build": "webpack",
     "start": "node index.js",
-    "start:dev": "nodemon ./index.ts"
+    "start:dev": "nodemon ./index"
   },
   "dependencies": {
     "ws": "^8.18.2"
